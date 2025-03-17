@@ -1,0 +1,16 @@
+server:
+  port: 3000
+  viewEngine: html
+
+logger:
+  level: debug
+  filepath: ./deviceservice.log
+
+Postgres:
+  # host: postgres
+  host: localhost
+  # host: postgres-service.device-sphere-infra.svc.cluster.local
+  port: 5432
+  user: user_automator
+  password: p@ssw0rd@Automator
+  dbname: data_automator

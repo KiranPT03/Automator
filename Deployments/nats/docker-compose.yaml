@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  nats:
+    image: nats:latest
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats-data:/data
+    command: -sd /data -js # Enable JetStream
+    healthcheck:
+      test: ["CMD", "nats", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  nats-data:
