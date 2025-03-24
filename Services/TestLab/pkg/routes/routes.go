@@ -23,23 +23,23 @@ func Init(app *fiber.App, config *config.Config) {
 		v1.Delete("/testcases/projects/:projectId", testCaseController.DeleteProject)
 
 		// Module routes
-		v1.Get("/services/testlab/testcases/projects/:project_id/modules", testCaseController.GetModules)
-		v1.Get("/services/testlab/testcases/projects/:project_id/modules/:module_id", testCaseController.GetModule)
-		v1.Post("/services/testlab/testcases/projects/:project_id/modules", testCaseController.CreateModule)
-		v1.Put("/services/testlab/testcases/modules/:module_id", testCaseController.UpdateModule)
-		v1.Delete("/services/testlab/testcases/projects/:project_id/modules/:module_id", testCaseController.DeleteModule)
+		v1.Get("/testcases/projects/:projectId/modules", testCaseController.GetModules)
+		v1.Get("/testcases/projects/:projectId/modules/:moduleId", testCaseController.GetModule)
+		v1.Post("/testcases/projects/:projectId/modules", testCaseController.CreateModule)
+		v1.Put("/testcases/projects/:projectId/modules/:moduleId", testCaseController.UpdateModule)
+		v1.Delete("/testcases/projects/:projectId/modules/:moduleId", testCaseController.DeleteModule)
 
 		// Testcase routes
-		v1.Get("/services/testlab/testcases/projects/:project_id/modules/:module_id/testcases", testCaseController.GetTestCases)
-		v1.Get("/services/testlab/testcases/projects/:project_id/modules/:module_id/testcases/:testcase_id", testCaseController.GetTestCase)
-		v1.Post("/services/testlab/testcases/projects/:project_id/modules/:module_id/testcases", testCaseController.CreateTestCase)
-		v1.Put("/services/testlab/testcases/testcases/:testcase_id", testCaseController.UpdateTestCase)
-		v1.Delete("/services/testlab/testcases/projects/:project_id/modules/:module_id/testcases/:testcase_id", testCaseController.DeleteTestCase)
+		v1.Get("/testcases/projects/:projectId/modules/:moduleId/testcases", testCaseController.GetTestCases)
+		v1.Get("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId", testCaseController.GetTestCase)
+		v1.Post("/testcases/projects/:projectId/modules/:moduleId/testcases", testCaseController.CreateTestCase)
+		v1.Put("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId", testCaseController.UpdateTestCase)
+		v1.Delete("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId", testCaseController.DeleteTestCase)
 
 		// Teststeps routes
-		v1.Post("/services/testlab/testcases/projects/:project_id/modules/:module_id/testcases/:testcase_id/teststeps", testCaseController.AddTestStep)
-		v1.Put("/services/testlab/testcases/projects/:project_id/modules/:module_id/testcases/:testcase_id/teststeps/:teststep_id", testCaseController.UpdateTestStep)
-		v1.Delete("/services/testlab/testcases/projects/:project_id/modules/:module_id/testcases/:testcase_id/teststeps/:teststep_id", testCaseController.DeleteTestStep)
+		v1.Post("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps", testCaseController.AddTestStep)
+		v1.Put("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps/:teststepId", testCaseController.UpdateTestStep)
+		v1.Delete("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps/:teststepId", testCaseController.DeleteTestStep)
 
 		// Teststeps routes
 	}

@@ -6,12 +6,11 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	config "automator/services/testlab/pkg/config"
-	"automator/services/testlab/pkg/routes"
+	routes "automator/services/testlab/pkg/routes"
 	log "automator/services/testlab/pkg/utils/loggers"
 )
 
 func main() {
-	log.Info("Hello, World!")
 	cfg, err := config.LoadConfig("./pkg/config/application.yaml")
 	if err != nil {
 		log.Fatal("Error while loading config, reason: %s", err.Error())
