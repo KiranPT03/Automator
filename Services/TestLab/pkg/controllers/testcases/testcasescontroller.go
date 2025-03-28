@@ -656,6 +656,14 @@ func (controller *TestCaseController) UpdateTestStep(c *fiber.Ctx) error {
 	return resterrors.SendOK(c, "ok")
 }
 
+func (controller *TestCaseController) ExecuteTestStep(c *fiber.Ctx) error {
+	return resterrors.SendOK(c, "ok")
+}
+
+func (controller *TestCaseController) CheckExecution(c *fiber.Ctx) error {
+	return resterrors.SendOK(c, "ok")
+}
+
 func (controller *TestCaseController) DeleteTestStep(c *fiber.Ctx) error {
 	log.Info("Deleting test step")
 	testCaseID := c.Params("testCaseId")

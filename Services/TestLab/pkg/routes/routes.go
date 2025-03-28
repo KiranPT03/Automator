@@ -38,9 +38,9 @@ func Init(app *fiber.App, config *config.Config) {
 
 		// Teststeps routes
 		v1.Post("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps", testCaseController.AddTestStep)
+		v1.Post("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps/:teststepId", testCaseController.ExecuteTestStep)
+		v1.Get("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps/:teststepId/check-execution", testCaseController.CheckExecution)
 		v1.Put("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps/:teststepId", testCaseController.UpdateTestStep)
 		v1.Delete("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps/:teststepId", testCaseController.DeleteTestStep)
-
-		// Teststeps routes
 	}
 }
