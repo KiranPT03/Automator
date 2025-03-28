@@ -1,3 +1,0 @@
-"""
-Browser automation package initialization.
-""" 
