@@ -46,6 +46,7 @@ func (controller *TestCaseController) GetProjects(c *fiber.Ctx) error {
 	}
 
 	for _, result := range results {
+		log.Debug("Printing results: %T", result["created_at"])
 		project := models.Project{
 			ProjectID:          commons.GetStringFromInterface(result["project_id"]),
 			ProjectName:        commons.GetStringFromInterface(result["project_name"]),
@@ -629,6 +630,7 @@ func (controller *TestCaseController) AddTestStep(c *fiber.Ctx) error {
 	data := map[string]interface{}{
 		"step_id":      testStep.StepID,
 		"description":  testStep.Description,
+		"step_order":   testStep.StepOrder,
 		"step_data":    testStep.StepData,
 		"step_status":  testStep.StepStatus,
 		"created_at":   testStep.CreatedAt,
@@ -653,7 +655,71 @@ func (controller *TestCaseController) AddTestStep(c *fiber.Ctx) error {
 }
 
 func (controller *TestCaseController) UpdateTestStep(c *fiber.Ctx) error {
-	return resterrors.SendOK(c, "ok")
+	// Get step ID from params
+	stepID := c.Params("teststepId")
+	if stepID == "" {
+		return resterrors.SendBadRequestError(c)
+	}
+
+	// Parse request body into TestStep struct
+	var testStep models.TestStep
+	if err := c.BodyParser(&testStep); err != nil {
+		return resterrors.SendBadRequestError(c)
+	}
+
+	// Create data map for update
+	data := make(map[string]interface{})
+	
+	// Only add fields that are present in the request
+	if testStep.StepOrder != "" {
+		data["step_order"] = testStep.StepOrder
+	}
+	if testStep.Description != "" {
+		data["description"] = testStep.Description
+	}
+	if testStep.StepData != "" {
+		data["step_data"] = testStep.StepData
+	}
+	if testStep.StepStatus != "" {
+		data["step_status"] = testStep.StepStatus
+	}
+
+	// Always update the updated_at timestamp
+	data["updated_at"] = datetime.GetCurrentUTCTimeString()
+
+	// If no fields to update were provided
+	if len(data) == 0 {
+		return resterrors.SendBadRequestError(c)
+	}
+
+	// Perform the update
+	affectedRows, err := controller.repository.Update("test_steps", "step_id", stepID, data)
+	if err != nil {
+		return resterrors.SendInternalServerError(c)
+	}
+
+	if affectedRows == 0 {
+		return resterrors.SendNotFoundError(c, "Test step not found")
+	}
+
+	// Fetch the updated test step
+	result, err := controller.repository.Get("test_steps", "step_id", stepID)
+	if err != nil {
+		return resterrors.SendInternalServerError(c)
+	}
+
+	// Convert the result to TestStep model
+	updatedTestStep := models.TestStep{
+		StepID:      commons.GetStringFromInterface(result["step_id"]),
+		StepOrder:   commons.GetStringFromInterface(result["step_order"]),
+		Description: commons.GetStringFromInterface(result["description"]),
+		StepData:    commons.GetStringFromInterface(result["step_data"]),
+		StepStatus:  commons.GetStringFromInterface(result["step_status"]),
+		CreatedAt:   commons.GetStringFromInterface(result["created_at"]),
+		UpdatedAt:   commons.GetStringFromInterface(result["updated_at"]),
+	}
+
+	return resterrors.SendOK(c, updatedTestStep)
 }
 
 func (controller *TestCaseController) ExecuteTestStep(c *fiber.Ctx) error {

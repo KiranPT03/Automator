@@ -60,8 +60,8 @@ func createTables(db *sql.DB) error {
                         target_browser VARCHAR(50),
                         url VARCHAR(255),
                         priority VARCHAR(50),
-                        created_at TIMESTAMP,
-                        updated_at TIMESTAMP
+                        created_at VARCHAR(50),
+                        updated_at VARCHAR(50)
                 );
         `
 	_, err := db.Exec(projectQuery)
@@ -118,6 +118,7 @@ func createTables(db *sql.DB) error {
                         step_id VARCHAR(255) PRIMARY KEY,
                         description TEXT,
                         step_data TEXT,
+						step_order VARCHAR(50),
                         step_status VARCHAR(50),
                         created_at VARCHAR(255),
                         updated_at VARCHAR(255),
