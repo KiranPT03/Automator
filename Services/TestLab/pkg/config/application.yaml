@@ -14,3 +14,9 @@ Postgres:
   user: user_automator
   password: p@ssw0rd@Automator
   dbname: data_automator
+
+NATS:
+  host: localhost
+  port: 4222
+  user: ""
+  password: ""

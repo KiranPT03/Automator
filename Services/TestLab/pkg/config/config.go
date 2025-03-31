@@ -10,6 +10,7 @@ type Config struct {
 	Server   Server   `yaml:"server"`
 	Logger   Logger   `yaml:"logger"`
 	Postgres Postgres `yaml:"Postgres"`
+	NATS     NATS     `yaml:"NATS"`
 }
 
 type Server struct {
@@ -28,6 +29,13 @@ type Postgres struct {
 	User     string `yaml:"user"`
 	Password string `yaml:"password"`
 	DBname   string `yaml:"dbname"`
+}
+
+type NATS struct {
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
 }
 
 func LoadConfig(path string) (*Config, error) {

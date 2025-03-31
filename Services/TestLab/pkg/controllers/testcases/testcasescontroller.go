@@ -1,13 +1,17 @@
 package testcases
 
 import (
+	"bytes"
 	"fmt"
+	"sort"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/jung-kurt/gofpdf"
 
 	config "automator/services/testlab/pkg/config"
+	natsProducer "automator/services/testlab/pkg/connectors/nats/producer"
 	postgres "automator/services/testlab/pkg/databases/postgres"
 	models "automator/services/testlab/pkg/models"
 	commons "automator/services/testlab/pkg/utils/commons"
@@ -17,7 +21,8 @@ import (
 )
 
 type TestCaseController struct {
-	repository *postgres.PostgreSQLRepository
+	repository   *postgres.PostgreSQLRepository
+	natsProducer natsProducer.NATSProducer
 }
 
 func NewTestCaseController(config *config.Config) *TestCaseController {
@@ -28,7 +33,19 @@ func NewTestCaseController(config *config.Config) *TestCaseController {
 		panic(err)
 	}
 
-	return &TestCaseController{repository: repository}
+	// Create a new NATS producer instance
+	log.Info("Creating new instance of NATS producer")
+	producer, err := natsProducer.NewNATSClient(config)
+	if err != nil {
+		log.Error("Failed to create NATS producer: %v", err)
+		// Continue without NATS if it fails
+		return &TestCaseController{repository: repository}
+	}
+
+	return &TestCaseController{
+		repository:   repository,
+		natsProducer: producer,
+	}
 }
 
 func (controller *TestCaseController) GetProjects(c *fiber.Ctx) error {
@@ -516,6 +533,7 @@ func (controller *TestCaseController) getTestStepsForTestCase(testCaseID string)
 		testStep := models.TestStep{
 			StepID:      commons.GetStringFromInterface(record["step_id"]),
 			Description: commons.GetStringFromInterface(record["description"]),
+			StepOrder:   commons.GetStringFromInterface(record["step_order"]),
 			StepData:    commons.GetStringFromInterface(record["step_data"]),
 			StepStatus:  commons.GetStringFromInterface(record["step_status"]),
 			CreatedAt:   commons.GetStringFromInterface(record["created_at"]),
@@ -523,6 +541,13 @@ func (controller *TestCaseController) getTestStepsForTestCase(testCaseID string)
 		}
 		testSteps = append(testSteps, testStep)
 	}
+
+	// Sort test steps based on StepOrder
+	sort.Slice(testSteps, func(i, j int) bool {
+		orderI, _ := strconv.Atoi(testSteps[i].StepOrder)
+		orderJ, _ := strconv.Atoi(testSteps[j].StepOrder)
+		return orderI < orderJ
+	})
 
 	return testSteps, nil
 }
@@ -571,6 +596,221 @@ func (controller *TestCaseController) GetTestCase(c *fiber.Ctx) error {
 
 func (controller *TestCaseController) UpdateTestCase(c *fiber.Ctx) error {
 	return resterrors.SendOK(c, "ok")
+}
+
+func (controller *TestCaseController) ExecuteTestCase(c *fiber.Ctx) error {
+	testCaseID := c.Params("testCaseId")
+	moduleID := c.Params("moduleId")
+	projectID := c.Params("projectId")
+
+	// Get project details
+	projectResult, err := controller.repository.Get("projects", "project_id", projectID)
+	if err != nil {
+		return resterrors.SendInternalServerError(c)
+	}
+	if projectResult == nil {
+		return resterrors.SendNotFoundError(c, "Project not found")
+	}
+
+	// Get module details
+	moduleResult, err := controller.repository.Get("modules", "module_id", moduleID)
+	if err != nil {
+		return resterrors.SendInternalServerError(c)
+	}
+	if moduleResult == nil {
+		return resterrors.SendNotFoundError(c, "Module not found")
+	}
+
+	// Get test case details
+	testCaseResult, err := controller.repository.Get("test_cases", "test_case_id", testCaseID)
+	if err != nil {
+		return resterrors.SendInternalServerError(c)
+	}
+	if testCaseResult == nil {
+		return resterrors.SendNotFoundError(c, "Test case not found")
+	}
+
+	// Get test steps
+	testSteps, err := controller.getTestStepsForTestCase(testCaseID)
+	if err != nil {
+		return resterrors.SendInternalServerError(c)
+	}
+
+	// Create execution data structure
+	executionData := struct {
+		ProjectID         string            `json:"projectId"`
+		ProjectName       string            `json:"projectName"`
+		ProjectStatus     string            `json:"projectStatus"`
+		ModuleID          string            `json:"moduleId"`
+		ModuleName        string            `json:"moduleName"`
+		ModuleStatus      string            `json:"moduleStatus"`
+		TestCaseID        string            `json:"testCaseId"`
+		TestCaseName      string            `json:"testCaseName"`
+		TestCaseStatus    string            `json:"testCaseStatus"`
+		TestCasePriority  string            `json:"testCasePriority"`
+		Precondition      string            `json:"precondition"`
+		ExpectedResult    string            `json:"expectedResult"`
+		TestSteps         []models.TestStep `json:"testSteps"`
+		ExecutionDateTime string            `json:"executionDateTime"`
+	}{
+		ProjectID:         commons.GetStringFromInterface(projectResult["project_id"]),
+		ProjectName:       commons.GetStringFromInterface(projectResult["project_name"]),
+		ProjectStatus:     commons.GetStringFromInterface(projectResult["project_status"]),
+		ModuleID:          commons.GetStringFromInterface(moduleResult["module_id"]),
+		ModuleName:        commons.GetStringFromInterface(moduleResult["module_name"]),
+		ModuleStatus:      commons.GetStringFromInterface(moduleResult["module_status"]),
+		TestCaseID:        commons.GetStringFromInterface(testCaseResult["test_case_id"]),
+		TestCaseName:      commons.GetStringFromInterface(testCaseResult["test_case_name"]),
+		TestCaseStatus:    commons.GetStringFromInterface(testCaseResult["test_case_status"]),
+		TestCasePriority:  commons.GetStringFromInterface(testCaseResult["priority"]),
+		Precondition:      commons.GetStringFromInterface(testCaseResult["precondition"]),
+		ExpectedResult:    commons.GetStringFromInterface(testCaseResult["expected_result"]),
+		TestSteps:         testSteps,
+		ExecutionDateTime: datetime.GetCurrentUTCTimeString(),
+	}
+
+	return resterrors.SendOK(c, executionData)
+}
+
+func (controller *TestCaseController) TestCaseResults(c *fiber.Ctx) error {
+	action := c.Query("action")
+	testCaseID := c.Params("testcaseId")
+	moduleID := c.Params("moduleId")
+	projectID := c.Params("projectId")
+
+	if testCaseID == "" || moduleID == "" || projectID == "" {
+		return resterrors.SendBadRequestError(c)
+	}
+
+	// Get project details
+	projectResult, err := controller.repository.Get("projects", "project_id", projectID)
+	if err != nil {
+		return resterrors.SendInternalServerError(c)
+	}
+	if projectResult == nil {
+		return resterrors.SendNotFoundError(c, "Project not found")
+	}
+
+	// Get module details
+	moduleResult, err := controller.repository.Get("modules", "module_id", moduleID)
+	if err != nil {
+		return resterrors.SendInternalServerError(c)
+	}
+	if moduleResult == nil {
+		return resterrors.SendNotFoundError(c, "Module not found")
+	}
+
+	// Get test case details
+	testCaseResult, err := controller.repository.Get("test_cases", "test_case_id", testCaseID)
+	if err != nil {
+		return resterrors.SendInternalServerError(c)
+	}
+	if testCaseResult == nil {
+		return resterrors.SendNotFoundError(c, "Test case not found")
+	}
+
+	// Get test steps
+	testSteps, err := controller.getTestStepsForTestCase(testCaseID)
+	if err != nil {
+		return resterrors.SendInternalServerError(c)
+	}
+
+	if action == "download" {
+		// Create PDF
+		pdf := gofpdf.New("P", "mm", "A4", "")
+		pdf.AddPage()
+
+		// Add header
+		pdf.SetFont("Arial", "B", 16)
+		pdf.Cell(190, 10, "Test Case Documentation")
+		pdf.Ln(15)
+
+		// Project Details Section
+		pdf.SetFont("Arial", "B", 14)
+		pdf.Cell(190, 10, "Project Information")
+		pdf.Ln(10)
+		pdf.SetFont("Arial", "", 12)
+		pdf.Cell(50, 8, "Project Name:")
+		pdf.Cell(140, 8, commons.GetStringFromInterface(projectResult["project_name"]))
+		pdf.Ln(8)
+		pdf.Cell(50, 8, "Project Status:")
+		pdf.Cell(140, 8, commons.GetStringFromInterface(projectResult["project_status"]))
+		pdf.Ln(15)
+
+		// Module Details Section
+		pdf.SetFont("Arial", "B", 14)
+		pdf.Cell(190, 10, "Module Information")
+		pdf.Ln(10)
+		pdf.SetFont("Arial", "", 12)
+		pdf.Cell(50, 8, "Module Name:")
+		pdf.Cell(140, 8, commons.GetStringFromInterface(moduleResult["module_name"]))
+		pdf.Ln(8)
+		pdf.Cell(50, 8, "Module Status:")
+		pdf.Cell(140, 8, commons.GetStringFromInterface(moduleResult["module_status"]))
+		pdf.Ln(15)
+
+		// Test Case Details Section
+		pdf.SetFont("Arial", "B", 14)
+		pdf.Cell(190, 10, "Test Case Information")
+		pdf.Ln(10)
+		pdf.SetFont("Arial", "", 12)
+		pdf.Cell(50, 8, "Test Case Name:")
+		pdf.Cell(140, 8, commons.GetStringFromInterface(testCaseResult["test_case_name"]))
+		pdf.Ln(8)
+		pdf.Cell(50, 8, "Priority:")
+		pdf.Cell(140, 8, commons.GetStringFromInterface(testCaseResult["priority"]))
+		pdf.Ln(8)
+		pdf.Cell(50, 8, "Description:")
+		pdf.MultiCell(140, 8, commons.GetStringFromInterface(testCaseResult["description"]), "", "", false)
+		pdf.Ln(8)
+		pdf.Cell(50, 8, "Precondition:")
+		pdf.MultiCell(140, 8, commons.GetStringFromInterface(testCaseResult["precondition"]), "", "", false)
+		pdf.Ln(8)
+		pdf.Cell(50, 8, "Expected Result:")
+		pdf.MultiCell(140, 8, commons.GetStringFromInterface(testCaseResult["expected_result"]), "", "", false)
+		pdf.Ln(15)
+
+		// Test Steps Table
+		pdf.SetFont("Arial", "B", 14)
+		pdf.Cell(190, 10, "Test Steps")
+		pdf.Ln(10)
+
+		// Table Headers
+		pdf.SetFont("Arial", "B", 12)
+		pdf.SetFillColor(200, 200, 200)
+		pdf.CellFormat(15, 10, "Step", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(75, 10, "Description", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(50, 10, "Test Data", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(50, 10, "Status", "1", 1, "C", true, 0, "")
+
+		// Table Content
+		pdf.SetFont("Arial", "", 12)
+		for _, step := range testSteps {
+			pdf.CellFormat(15, 10, step.StepOrder, "1", 0, "C", false, 0, "")
+			pdf.CellFormat(75, 10, step.Description, "1", 0, "L", false, 0, "")
+			pdf.CellFormat(50, 10, step.StepData, "1", 0, "L", false, 0, "")
+			pdf.CellFormat(50, 10, step.StepStatus, "1", 1, "C", false, 0, "")
+		}
+
+		// Add footer with timestamp
+		pdf.Ln(10)
+		pdf.SetFont("Arial", "I", 10)
+		pdf.Cell(190, 8, fmt.Sprintf("Generated on: %s", datetime.GetCurrentUTCTimeString()))
+
+		// Generate PDF bytes
+		var buf bytes.Buffer
+		err = pdf.Output(&buf)
+		if err != nil {
+			return resterrors.SendInternalServerError(c)
+		}
+
+		// Set response headers
+		c.Set("Content-Type", "application/pdf")
+		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=test_case_%s.pdf", testCaseID))
+
+		return c.Send(buf.Bytes())
+	}
+	return resterrors.SendOK(c, testCaseResult)
 }
 
 func (controller *TestCaseController) DeleteTestCase(c *fiber.Ctx) error {
@@ -669,7 +909,7 @@ func (controller *TestCaseController) UpdateTestStep(c *fiber.Ctx) error {
 
 	// Create data map for update
 	data := make(map[string]interface{})
-	
+
 	// Only add fields that are present in the request
 	if testStep.StepOrder != "" {
 		data["step_order"] = testStep.StepOrder
@@ -724,6 +964,43 @@ func (controller *TestCaseController) UpdateTestStep(c *fiber.Ctx) error {
 
 func (controller *TestCaseController) ExecuteTestStep(c *fiber.Ctx) error {
 	return resterrors.SendOK(c, "ok")
+}
+
+func (controller *TestCaseController) GetTestStep(c *fiber.Ctx) error {
+	testStepID := c.Params("teststepId")
+	testCaseID := c.Params("testcaseId")
+
+	if testStepID == "" || testCaseID == "" {
+		return resterrors.SendBadRequestError(c)
+	}
+
+	// Fetch test step data
+	testStepResult, err := controller.repository.Get("test_steps", "step_id", testStepID)
+	if err != nil {
+		return resterrors.SendInternalServerError(c)
+	}
+
+	if testStepResult == nil {
+		return resterrors.SendNotFoundError(c, "Test step not found")
+	}
+
+	// Verify if the test step belongs to the specified test case
+	if commons.GetStringFromInterface(testStepResult["test_case_id"]) != testCaseID {
+		return resterrors.SendNotFoundError(c, "Test step not found for this test case")
+	}
+
+	// Convert the database result to TestStep model
+	testStep := models.TestStep{
+		StepID:      commons.GetStringFromInterface(testStepResult["step_id"]),
+		Description: commons.GetStringFromInterface(testStepResult["description"]),
+		StepOrder:   commons.GetStringFromInterface(testStepResult["step_order"]),
+		StepData:    commons.GetStringFromInterface(testStepResult["step_data"]),
+		StepStatus:  commons.GetStringFromInterface(testStepResult["step_status"]),
+		CreatedAt:   commons.GetStringFromInterface(testStepResult["created_at"]),
+		UpdatedAt:   commons.GetStringFromInterface(testStepResult["updated_at"]),
+	}
+
+	return resterrors.SendOK(c, testStep)
 }
 
 func (controller *TestCaseController) CheckExecution(c *fiber.Ctx) error {

@@ -34,10 +34,13 @@ func Init(app *fiber.App, config *config.Config) {
 		v1.Get("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId", testCaseController.GetTestCase)
 		v1.Post("/testcases/projects/:projectId/modules/:moduleId/testcases", testCaseController.CreateTestCase)
 		v1.Put("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId", testCaseController.UpdateTestCase)
+		v1.Post("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/execute", testCaseController.ExecuteTestCase)
+		v1.Get("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/results", testCaseController.TestCaseResults)
 		v1.Delete("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId", testCaseController.DeleteTestCase)
 
 		// Teststeps routes
 		v1.Post("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps", testCaseController.AddTestStep)
+		v1.Get("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps/:teststepId", testCaseController.GetTestStep)
 		v1.Post("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps/:teststepId", testCaseController.ExecuteTestStep)
 		v1.Get("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps/:teststepId/check-execution", testCaseController.CheckExecution)
 		v1.Put("/testcases/projects/:projectId/modules/:moduleId/testcases/:testcaseId/teststeps/:teststepId", testCaseController.UpdateTestStep)
