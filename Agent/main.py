@@ -25,33 +25,46 @@ async def handle_nats_message(message_data):
     
     logger.info(f"Received NATS message: {message_data}")
     
-    prompts = []
+    test_steps = []
     
-    # Check if message contains prompts
+    # Check if message contains prompts (legacy format)
     if message_data and 'prompts' in message_data and isinstance(message_data['prompts'], list):
-        prompts = message_data['prompts']
-        logger.info(f"Using prompts from NATS message: {prompts}")
+        # Convert simple prompts to test step objects
+        for i, prompt in enumerate(message_data['prompts']):
+            test_steps.append({
+                'stepId': f"prompt-{i+1}",
+                'description': prompt,
+                'prompt': prompt
+            })
+        logger.info(f"Converted prompts to test steps: {test_steps}")
     
-    # Extract test steps if available
-    if message_data and 'testSteps' in message_data and isinstance(message_data['testSteps'], list):
-        # Convert test steps to prompts
-        test_prompts = []
+    # Extract test steps if available (preferred format)
+    elif message_data and 'testSteps' in message_data and isinstance(message_data['testSteps'], list):
+        # Process test steps
         for step in message_data['testSteps']:
+            step_data = {}
+            step_data['stepId'] = step.get('stepId', f"step-{len(test_steps)+1}")
+            
+            # Use description or stepData as the prompt
             if 'description' in step and step['description']:
-                test_prompts.append(step['description'])
+                step_data['description'] = step['description']
+                step_data['prompt'] = step['description']
             elif 'stepData' in step and step['stepData']:
-                test_prompts.append(step['stepData'])
+                step_data['description'] = step.get('description', step['stepData'])
+                step_data['prompt'] = step['stepData']
+            else:
+                continue  # Skip steps without description or stepData
+                
+            test_steps.append(step_data)
         
-        if test_prompts:
-            prompts = test_prompts
-            logger.info(f"Using prompts from test steps: {prompts}")
+        logger.info(f"Using test steps from message: {test_steps}")
     
-    if not prompts:
-        logger.warning("No prompts found in message, skipping automation")
+    if not test_steps:
+        logger.warning("No test steps found in message, skipping automation")
         return
     
     # Schedule the browser automation to run in the main thread
-    automation_prompts = prompts
+    automation_prompts = test_steps
     
     # Set flag to indicate browser needs to be restarted
     browser_needs_restart = True
@@ -122,9 +135,9 @@ def main():
                         if not browser.launch():
                             logger.error("Failed to launch browser for automation")
                         else:
-                            # Execute the prompts
+                            # Execute the test steps
                             executor.execute_prompts(automation_prompts)
-                            logger.info("Completed execution of prompts")
+                            logger.info("Completed execution of test steps")
                             
                             # Close only the browser context, not the entire application
                             if hasattr(browser, 'context') and browser.context is not None:
@@ -136,9 +149,9 @@ def main():
                             browser.page = None
                             logger.info("Browser window closed after automation, NATS consumer still active")
                     else:
-                        # Execute the prompts with existing browser
+                        # Execute the test steps with existing browser
                         executor.execute_prompts(automation_prompts)
-                        logger.info("Completed execution of prompts")
+                        logger.info("Completed execution of test steps")
                         
                         # Close only the browser context, not the entire application
                         if hasattr(browser, 'context') and browser.context is not None:

@@ -34,3 +34,15 @@ NATS_CONFIG = {
 # NATS subject and queue
 NATS_SUBJECT = "testlab.testcase.executed"
 NATS_QUEUE = "qg_browser_automation"
+
+# PostgreSQL settings
+POSTGRES_CONFIG = {
+    "host": "localhost",
+    "port": 5432,
+    "database": "data_automator",
+    "user": "user_automator",
+    "password": "p@ssw0rd@Automator",
+    "min_connections": 1,
+    "max_connections": 10,
+    "connection_timeout": 30  # seconds
+}
