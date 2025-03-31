@@ -630,6 +630,16 @@ func (controller *TestCaseController) ExecuteTestCase(c *fiber.Ctx) error {
 		return resterrors.SendNotFoundError(c, "Test case not found")
 	}
 
+	// Update all test steps status to "Pending" before execution
+	updateQuery := fmt.Sprintf("UPDATE test_steps SET step_status = 'Pending', updated_at = '%s' WHERE test_case_id = $1",
+		datetime.GetCurrentUTCTimeString())
+	_, err = controller.repository.ExecuteQuery(updateQuery, testCaseID)
+	if err != nil {
+		log.Error("Failed to update test steps status: %v", err)
+		return resterrors.SendInternalServerError(c)
+	}
+	log.Info("Updated all test steps status to Pending for test case: %s", testCaseID)
+
 	// Get test steps
 	testSteps, err := controller.getTestStepsForTestCase(testCaseID)
 	if err != nil {
@@ -667,6 +677,16 @@ func (controller *TestCaseController) ExecuteTestCase(c *fiber.Ctx) error {
 		ExpectedResult:    commons.GetStringFromInterface(testCaseResult["expected_result"]),
 		TestSteps:         testSteps,
 		ExecutionDateTime: datetime.GetCurrentUTCTimeString(),
+	}
+	if controller.natsProducer != nil {
+		subject := "testlab.testcase.executed"
+		err := controller.natsProducer.PublishMessage(subject, executionData)
+		if err != nil {
+			log.Error("Failed to publish test execution event: %v", err)
+			// Continue even if publishing fails
+		} else {
+			log.Info("Test execution event published for test case: %s", testCaseID)
+		}
 	}
 
 	return resterrors.SendOK(c, executionData)
