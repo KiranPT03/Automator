@@ -22,3 +22,15 @@ MAX_RETRY_COUNT = 4
 
 # Screenshot settings
 SCREENSHOT_DIR = "screenshots"
+
+# NATS settings
+NATS_CONFIG = {
+    "servers": ["nats://localhost:4222"],  # NATS server URLs
+    "connection_timeout": 10,  # Connection timeout in seconds
+    "max_reconnect_attempts": 5,
+    "reconnect_time_wait": 2  # Time to wait between reconnect attempts (seconds)
+}
+
+# NATS subject and queue
+NATS_SUBJECT = "testlab.testcase.executed"
+NATS_QUEUE = "qg_browser_automation"
