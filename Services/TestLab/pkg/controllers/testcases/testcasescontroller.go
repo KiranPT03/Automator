@@ -3,6 +3,10 @@ package testcases
 import (
 	"bytes"
 	"fmt"
+	"image"
+	"math"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 
@@ -23,6 +27,7 @@ import (
 type TestCaseController struct {
 	repository   *postgres.PostgreSQLRepository
 	natsProducer natsProducer.NATSProducer
+	config       *config.Config
 }
 
 func NewTestCaseController(config *config.Config) *TestCaseController {
@@ -45,6 +50,7 @@ func NewTestCaseController(config *config.Config) *TestCaseController {
 	return &TestCaseController{
 		repository:   repository,
 		natsProducer: producer,
+		config:       config,
 	}
 }
 
@@ -806,10 +812,97 @@ func (controller *TestCaseController) TestCaseResults(c *fiber.Ctx) error {
 		// Table Content
 		pdf.SetFont("Arial", "", 12)
 		for _, step := range testSteps {
-			pdf.CellFormat(15, 10, step.StepOrder, "1", 0, "C", false, 0, "")
-			pdf.CellFormat(75, 10, step.Description, "1", 0, "L", false, 0, "")
-			pdf.CellFormat(50, 10, step.StepData, "1", 0, "L", false, 0, "")
-			pdf.CellFormat(50, 10, step.StepStatus, "1", 1, "C", false, 0, "")
+			// Save current position
+			x, y := pdf.GetX(), pdf.GetY()
+
+			// Calculate required height for all cells in this row
+			descLines := pdf.SplitText(step.Description, 70) // 70mm width for description
+			dataLines := pdf.SplitText(step.StepData, 45)    // 45mm width for test data
+
+			// Calculate max lines needed for this row
+			maxLines := math.Max(float64(len(descLines)), float64(len(dataLines)))
+			rowHeight := 10.0 * maxLines // Total height for this row
+
+			// Step Order (fixed height)
+			pdf.CellFormat(15, rowHeight, step.StepOrder, "1", 0, "C", false, 0, "")
+
+			// Description (multi-line)
+			pdf.SetXY(x+15, y)
+			pdf.MultiCell(75, 10, step.Description, "1", "L", false)
+
+			// Test Data (multi-line)
+			pdf.SetXY(x+90, y)
+			pdf.MultiCell(50, 10, step.StepData, "1", "L", false)
+
+			// Status (fixed height)
+			pdf.SetXY(x+140, y)
+			pdf.CellFormat(50, rowHeight, step.StepStatus, "1", 1, "C", false, 0, "")
+
+			// Move to next row position
+			pdf.SetXY(x, y+rowHeight)
+		}
+
+		pdf.Ln(15)
+		pdf.SetFont("Arial", "B", 14)
+		pdf.Cell(190, 10, "Test Step Screenshots")
+		pdf.Ln(15)
+
+		for _, step := range testSteps {
+			// Add step description
+			pdf.SetFont("Arial", "B", 12)
+			pdf.Cell(190, 8, fmt.Sprintf("Step %s: %s", step.StepOrder, step.Description))
+			pdf.Ln(8)
+
+			// Check if screenshot exists
+			screenshotPath := filepath.Join(controller.config.ScreenshotsPath, fmt.Sprintf("%s.png", step.StepID))
+			if _, err := os.Stat(screenshotPath); err == nil {
+				// Get image dimensions
+				file, err := os.Open(screenshotPath)
+				if err == nil {
+					image, _, err := image.DecodeConfig(file)
+					file.Close()
+
+					if err == nil {
+						// Calculate scaling and height
+						scale := 190.0 / float64(image.Width)
+						scaledHeight := float64(image.Height) * scale
+
+						// Check if image will fit on current page
+						remainingPageHeight := 297.0 - pdf.GetY() - 20 // A4 height is 297mm, 20mm margin
+
+						if scaledHeight > remainingPageHeight {
+							// Add new page if image won't fit
+							pdf.AddPage()
+							pdf.SetY(20) // Reset Y position after new page
+						}
+
+						// Add space before image
+						pdf.Ln(5)
+
+						// Add screenshot
+						pdf.ImageOptions(
+							screenshotPath,
+							10,                    // x position
+							pdf.GetY(),            // y position
+							190,                   // width
+							0,                     // height (0 maintains aspect ratio)
+							false,                 // flow
+							gofpdf.ImageOptions{}, // link
+							0,                     // linkStr
+							"",                    // altStr
+						)
+
+						// Add space after image
+						pdf.Ln(scaledHeight + 10)
+					}
+				}
+			} else {
+				pdf.SetFont("Arial", "I", 10)
+				pdf.Cell(190, 8, "No screenshot available")
+				pdf.Ln(15)
+			}
+
+			pdf.Ln(10) // Add space between steps
 		}
 
 		// Add footer with timestamp

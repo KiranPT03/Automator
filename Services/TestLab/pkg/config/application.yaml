@@ -20,3 +20,5 @@ NATS:
   port: 4222
   user: ""
   password: ""
+
+screenshots_path: "C:\\Users\\kiran\\Work\\Github\\KiranPT03\\Automator\\screenshots"

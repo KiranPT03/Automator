@@ -11,6 +11,7 @@ type Config struct {
 	Logger   Logger   `yaml:"logger"`
 	Postgres Postgres `yaml:"Postgres"`
 	NATS     NATS     `yaml:"NATS"`
+    ScreenshotsPath string `yaml:"screenshots_path"`
 }
 
 type Server struct {
