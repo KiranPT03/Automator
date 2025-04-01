@@ -21,7 +21,7 @@ GEMINI_MODEL = "gemini-2.0-flash-exp-image-generation"
 MAX_RETRY_COUNT = 4
 
 # Screenshot settings
-SCREENSHOT_DIR = "screenshots"
+SCREENSHOT_DIR = "C:\\Users\\kiran\\Work\\Github\\KiranPT03\\Automator\\screenshots"
 
 # NATS settings
 NATS_CONFIG = {

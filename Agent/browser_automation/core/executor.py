@@ -63,7 +63,8 @@ class CodeExecutor:
             # Record result and take screenshot if successful
             self.browser.record_result(prompt, success, error_message=None, step_id=step_id, step_description=step_description)
             if success:
-                self.browser.take_screenshot()
+                filename = f"{step_id}"
+                self.browser.take_screenshot(filename)
                 self.browser.wait_for_page_load()
             
             return success
