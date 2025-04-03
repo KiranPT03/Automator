@@ -80,6 +80,7 @@ def get_page_state(page):
         
         # Parse HTML with BeautifulSoup for additional analysis
         soup = BeautifulSoup(html_content, 'html.parser')
+        logger.debug("BeautifulSoup initialized with page HTML content")
         
         # Extract form information
         forms = []
@@ -104,6 +105,8 @@ def get_page_state(page):
             
             forms.append(form_info)
         
+        logger.debug(f"BeautifulSoup extracted {len(forms)} forms from the page")
+        
         # Extract navigation elements
         navigation = []
         for nav in soup.find_all(['nav', 'header']):
@@ -122,6 +125,8 @@ def get_page_state(page):
                 'class': ' '.join(nav.get('class', [])),
                 'links': nav_links
             })
+        
+        logger.debug(f"BeautifulSoup extracted {len(navigation)} navigation elements with a total of {sum(len(nav['links']) for nav in navigation)} links")
         
         # Return comprehensive page state
         return {
@@ -181,6 +186,7 @@ def extract_page_summary(page_state):
             if len(form['inputs']) > 5:
                 form_summary.append(f"  - ... and {len(form['inputs']) - 5} more inputs")
         summary_parts.append("Forms:\n" + "\n".join(form_summary))
+        logger.debug(f"BeautifulSoup summary includes {len(forms)} forms with details")
     
     # Summarize navigation
     navigation = page_state.get('navigation', [])
@@ -193,6 +199,7 @@ def extract_page_summary(page_state):
             if len(nav['links']) > 5:
                 nav_summary.append(f"  - ... and {len(nav['links']) - 5} more links")
         summary_parts.append("Navigation:\n" + "\n".join(nav_summary))
+        logger.debug(f"BeautifulSoup summary includes {len(navigation)} navigation elements")
     
     # Summarize interactive elements
     if 'element_details' in page_state and 'interactiveElements' in page_state['element_details']:
@@ -206,5 +213,81 @@ def extract_page_summary(page_state):
             if len(interactive) > 10:
                 interactive_summary.append(f"  - ... and {len(interactive) - 10} more interactive elements")
             summary_parts.append("Interactive Elements:\n" + "\n".join(interactive_summary))
+            logger.debug(f"Summary includes {len(interactive)} interactive elements from JavaScript evaluation")
     
+    logger.info("Generated page summary with BeautifulSoup-enhanced analysis")
     return "\n\n".join(summary_parts)
+
+def log_beautifulsoup_selectors(html_content, prompt):
+    """
+    Log potential BeautifulSoup selectors for a given prompt.
+    
+    Args:
+        html_content: HTML content of the page
+        prompt: User prompt describing the desired action
+        
+    Returns:
+        dict: Dictionary of potential selectors
+    """
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        logger.debug(f"Analyzing page with BeautifulSoup for prompt: {prompt}")
+        
+        # Extract keywords from the prompt
+        keywords = [word.lower() for word in prompt.split() if len(word) > 3]
+        logger.debug(f"Extracted keywords from prompt: {keywords}")
+        
+        selectors = {}
+        
+        # Look for elements matching keywords
+        for keyword in keywords:
+            matching_elements = []
+            
+            # Check for buttons
+            buttons = soup.find_all('button')
+            for button in buttons:
+                if keyword in button.text.lower() or any(keyword in attr.lower() for attr in button.attrs.values() if isinstance(attr, str)):
+                    matching_elements.append({
+                        'element_type': 'button',
+                        'text': button.text.strip(),
+                        'id': button.get('id', ''),
+                        'class': ' '.join(button.get('class', [])),
+                        'selector': f"button#{button.get('id')}" if button.get('id') else f"button.{'.'.join(button.get('class', []))}" if button.get('class') else f"button:contains('{button.text.strip()}')"
+                    })
+            
+            # Check for links
+            links = soup.find_all('a')
+            for link in links:
+                if keyword in link.text.lower() or any(keyword in attr.lower() for attr in link.attrs.values() if isinstance(attr, str)):
+                    matching_elements.append({
+                        'element_type': 'link',
+                        'text': link.text.strip(),
+                        'href': link.get('href', ''),
+                        'id': link.get('id', ''),
+                        'class': ' '.join(link.get('class', [])),
+                        'selector': f"a#{link.get('id')}" if link.get('id') else f"a.{'.'.join(link.get('class', []))}" if link.get('class') else f"a:contains('{link.text.strip()}')"
+                    })
+            
+            # Check for inputs
+            inputs = soup.find_all('input')
+            for input_el in inputs:
+                if any(keyword in attr.lower() for attr in input_el.attrs.values() if isinstance(attr, str)):
+                    matching_elements.append({
+                        'element_type': 'input',
+                        'type': input_el.get('type', 'text'),
+                        'name': input_el.get('name', ''),
+                        'id': input_el.get('id', ''),
+                        'placeholder': input_el.get('placeholder', ''),
+                        'selector': f"input#{input_el.get('id')}" if input_el.get('id') else f"input[name='{input_el.get('name')}']" if input_el.get('name') else f"input[placeholder='{input_el.get('placeholder')}']" if input_el.get('placeholder') else "input"
+                    })
+            
+            if matching_elements:
+                selectors[keyword] = matching_elements
+                logger.info(f"Found {len(matching_elements)} elements matching keyword '{keyword}' using BeautifulSoup")
+                for el in matching_elements:
+                    logger.debug(f"BeautifulSoup selector for '{keyword}': {el['selector']} ({el['element_type']})")
+        
+        return selectors
+    except Exception as e:
+        logger.error(f"Error generating BeautifulSoup selectors: {e}")
+        return {}
