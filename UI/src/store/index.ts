@@ -1,14 +1,12 @@
 
 import { configureStore } from '@reduxjs/toolkit';
-import projectReducer from './projectSlice';
-import moduleReducer from './moduleSlice';
-import testCaseReducer from './testCaseSlice';
+import { projectsReducer } from './projects';
+import { testCasesReducer } from './test-cases';
 
 export const store = configureStore({
   reducer: {
-    projects: projectReducer,
-    modules: moduleReducer,
-    testCases: testCaseReducer,
+    projects: projectsReducer,
+    testCases: testCasesReducer,
   },
 });
 

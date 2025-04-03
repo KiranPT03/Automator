@@ -1,36 +1,49 @@
 
+import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Provider } from 'react-redux';
 import { store } from './store';
-import Index from "./pages/Index";
-import TestLab from "./pages/TestLab";
-import Administration from "./pages/Administration";
-import NotFound from "./pages/NotFound";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Layout } from "@/components/layout";
+import Dashboard from "@/pages/Dashboard";
+import Lab from "@/pages/Lab";
+import Executor from "@/pages/Executor";
+import Defects from "@/pages/Defects";
+import Reporting from "@/pages/Reporting";
+import Admin from "@/pages/Admin";
+import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <Provider store={store}>
+const App = () => {
+  return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Sonner position="top-right" closeButton richColors />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/test-lab" element={<TestLab />} />
-            <Route path="/test-execution" element={<Index />} />
-            <Route path="/defect-management" element={<Index />} />
-            <Route path="/reporting" element={<Index />} />
-            <Route path="/administration" element={<Administration />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <Provider store={store}>
+        <ThemeProvider defaultTheme="system">
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route element={<Layout />}>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/lab" element={<Lab />} />
+                  <Route path="/executor" element={<Executor />} />
+                  <Route path="/defects" element={<Defects />} />
+                  <Route path="/reporting" element={<Reporting />} />
+                  <Route path="/admin" element={<Admin />} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </ThemeProvider>
+      </Provider>
     </QueryClientProvider>
-  </Provider>
-);
+  );
+};
 
 export default App;
